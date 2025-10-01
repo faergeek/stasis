@@ -12,21 +12,21 @@ Works great with [grim](https://gitlab.freedesktop.org/emersion/grim) and
 [slurp](https://github.com/emersion/slurp):
 
 ```sh
-still -c 'slurp -d | grim -g- -'
+still -c 'slurp | grim -g- -'
 ```
 
 As well as with [swappy](https://github.com/jtheoof/swappy) if you want to
 annotate your screenshot right away:
 
 ```sh
-still -c 'slurp -d | grim -g- -l0 -' | swappy -f -
+still -c 'slurp | grim -g- -' | swappy -f -
 ```
 
 Add `-p` if you want to include a cursor (or **p**ointer) on a frozen
 screenshot:
 
 ```sh
-still -p -c 'slurp -d | grim -g- -' | swappy -f -
+still -p -c 'slurp | grim -g- -' | swappy -f -
 ```
 
 ## Building
