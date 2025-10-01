@@ -22,8 +22,7 @@ annotate your screenshot right away:
 stasis -c 'slurp -d | grim -g- -l0 -' | swappy -f -
 ```
 
-Add `-p` if you want to include a **p**ointer (a cursor, but, well, `-c` is
-already taken by **c**ommand and looks similar to `sh -c`) on a frozen
+Add `-p` if you want to include a cursor (or **p**ointer) on a frozen
 screenshot:
 
 ```sh
@@ -32,14 +31,10 @@ stasis -p -c 'slurp -d | grim -g- -' | swappy -f -
 
 ## Building
 
-Setup using meson (once):
+Make sure you have [meson
+installed](https://mesonbuild.com/Getting-meson.html) and then:
 
 ```sh
 meson setup --buildtype release build
-```
-
-Compile:
-
-```sh
 meson compile -C build
 ```
