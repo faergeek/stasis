@@ -29,12 +29,19 @@ screenshot:
 still -p -c 'slurp | grim -g- -' | swappy -f -
 ```
 
-## Building
+## Installation
 
-Make sure you have [meson
-installed](https://mesonbuild.com/Getting-meson.html) and then:
+### Arch Linux
+
+There's an [AUR package](https://aur.archlinux.org/packages/still).
+
+### Building from source
+
+Make sure you have [meson](https://mesonbuild.com/Getting-meson.html) and then:
 
 ```sh
 meson setup --buildtype release build
 meson compile -C build
 ```
+
+A binary will be at `./build/still`.

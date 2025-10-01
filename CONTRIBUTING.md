@@ -2,7 +2,7 @@
 
 ## Setup
 
-Make sure you have [meson installed](https://mesonbuild.com/Getting-meson.html)
+Make sure you have [meson](https://mesonbuild.com/Getting-meson.html).
 
 ## Building
 
