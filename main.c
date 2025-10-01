@@ -166,7 +166,7 @@ screencopy_handle_ready(void *data, struct zwlr_screencopy_frame_v1 *frame,
   struct zwlr_layer_surface_v1 *layer_surface =
       zwlr_layer_shell_v1_get_layer_surface(
           overlay->globals->wlr_layer_shell, overlay->wl_surface,
-          overlay->wl_output, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "stasis");
+          overlay->wl_output, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "still");
   assert(layer_surface != nullptr);
 
   zwlr_layer_surface_v1_set_size(layer_surface, 0, 0);
@@ -251,7 +251,7 @@ int main(int argc, char *argv[]) {
 
   const char *bin_name = argv[0];
   if (bin_name == nullptr || strlen(bin_name) == 0) {
-    bin_name = "stasis";
+    bin_name = "still";
   }
 
   int option;

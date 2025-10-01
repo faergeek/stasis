@@ -1,5 +1,5 @@
 project(
-    'stasis',
+    'still',
     'c',
     version: '0.0.1',
     license: 'MIT',
@@ -12,7 +12,7 @@ add_project_arguments('-D_POSIX_C_SOURCE=200809L', language: 'c')
 wayland = import('wayland')
 
 executable(
-    'stasis',
+    'still',
     install: true,
     sources: [
         'main.c',
