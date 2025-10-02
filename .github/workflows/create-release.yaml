@@ -23,7 +23,7 @@ jobs:
           args: --current --strip all
         env:
           OUTPUT: /tmp/release-notes.md
-      - run: sudo apt-get install meson
+      - run: sudo apt-get install libwayland-dev meson wayland-protocols
       - run: meson setup --buildtype release build
       - run: meson dist -C build
       - uses: softprops/action-gh-release@v2
