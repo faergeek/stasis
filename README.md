@@ -37,11 +37,31 @@ There's an [AUR package](https://aur.archlinux.org/packages/still).
 
 ### Building from source
 
-Make sure you have [meson](https://mesonbuild.com/Getting-meson.html) and then:
+#### Install dependencies
+
+Dependencies:
+
+- meson
+- libwayland-client
+- wayland-protocols
+
+##### Arch Linux
+
+```sh
+sudo pacman -S meson wayland wayland-protocols
+```
+
+##### Debian/Ubuntu
+
+```sh
+sudo apt-get install meson libwayland-dev wayland-protocols
+```
+
+#### Compile
 
 ```sh
 meson setup --buildtype release build
-meson compile -C build
+ninja -C build
 ```
 
 A binary will be at `./build/still`.

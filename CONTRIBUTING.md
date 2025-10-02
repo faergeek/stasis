@@ -1,12 +1,10 @@
 # How to contribute
 
-## Setup
+## Building in debug mode
 
-Make sure you have [meson](https://mesonbuild.com/Getting-meson.html).
+Install dependencies listed in [Building from source](./README.md#building-from-source)
 
-## Building
-
-Setup using meson (once):
+Setup (once):
 
 ```sh
 meson setup build
@@ -15,5 +13,5 @@ meson setup build
 Compile:
 
 ```sh
-meson compile -C build
+ninja -C build
 ```
