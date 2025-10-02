@@ -297,17 +297,18 @@ int main(int argc, char *argv[]) {
 
   struct wl_output **wl_output;
   wl_array_for_each(wl_output, &globals.monitors) {
-    struct zwlr_screencopy_frame_v1 *frame =
-        zwlr_screencopy_manager_v1_capture_output(
-            globals.wlr_screencopy_manager, overlay_cursor, *wl_output);
+    struct screenshot_overlay *overlay = malloc(sizeof(*overlay));
 
-    struct screenshot_overlay overlay = (struct screenshot_overlay){
+    *overlay = (struct screenshot_overlay){
         .globals = &globals,
         .wl_output = *wl_output,
     };
 
-    zwlr_screencopy_frame_v1_add_listener(frame, &screencopy_listener,
-                                          &overlay);
+    struct zwlr_screencopy_frame_v1 *frame =
+        zwlr_screencopy_manager_v1_capture_output(
+            globals.wlr_screencopy_manager, overlay_cursor, *wl_output);
+
+    zwlr_screencopy_frame_v1_add_listener(frame, &screencopy_listener, overlay);
   }
 
   while (!globals.done) {
