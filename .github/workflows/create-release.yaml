@@ -27,6 +27,7 @@ jobs:
       - name: prepare a tarball
         run: |
           meson setup --buildtype release build
+          git status
           meson dist -C build
       - uses: softprops/action-gh-release@v2
         with:
