@@ -24,3 +24,39 @@ jobs:
       - run: sudo apt-get install libwayland-dev meson wayland-protocols
       - run: meson setup --buildtype release build
       - run: ninja -C build
+  bump-version:
+    if: github.ref_name == github.event.repository.default_branch
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: orhun/git-cliff-action@v4
+        id: git-cliff
+        with:
+          args: --bump
+        env:
+          OUTPUT: CHANGELOG.md
+      - name: bump version
+        env:
+          version: ${{ steps.git-cliff.outputs.version }}
+        run: |
+          sed -i -e "s/^\(\s\+version\): '.*'/\1: '${version#v}'/" meson.build
+          git add CHANGELOG.md meson.build
+
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+          if git commit -m "chore: $version"; then
+            git push origin
+
+            git tag "$version"
+            git push origin --tags
+          fi
