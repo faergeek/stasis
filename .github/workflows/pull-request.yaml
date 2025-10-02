@@ -1,0 +1,34 @@
+name: pull-request
+on:
+  - pull_request
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+permissions:
+  contents: read
+jobs:
+  update-changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: orhun/git-cliff-action@v4
+        env:
+          OUTPUT: CHANGELOG.md
+      - name: update changelog
+        run: |
+          git add CHANGELOG.md
+
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+          if git commit -m 'chore: update changelog'; then
+            git push origin
+          fi

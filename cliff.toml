@@ -1,0 +1,41 @@
+[changelog]
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
+"""
+
+body = """
+{% if version %}
+  ## {{ version | trim_start_matches(pat="v") }} ({{ timestamp | date(format="%Y-%m-%d") }})
+{%- else %}
+  ## Unreleased
+{%- endif %}
+
+{%- if commits | filter(attribute="breaking", value=true) | length != 0 %}
+
+  ### BREAKING CHANGES
+  {% for commit in commits | filter(attribute="breaking", value=true) %}
+    {%- for footer in commit.footers | filter(attribute="breaking", value=true) %}
+      - {{ footer.value }}
+    {%- endfor %}
+  {%- endfor %}
+{%- endif %}
+{% for group, commits in commits | group_by(attribute="group") %}
+  ### {{ group }}
+  {% for commit in commits %}
+    - {{ commit.message }}
+  {%- endfor %}
+{% endfor %}
+"""
+
+[git]
+commit_parsers = [
+  { message = "^docs", group = "Documentation" },
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Fixes" },
+  { message = "^perf", group = "Performance Improvements" },
+]
+conventional_commits = true
+filter_commits = true
+filter_unconventional = true
