@@ -31,7 +31,5 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           body_path: /tmp/release-notes.md
-          files: |
-            build/meson-dist/still-${{ steps.git-cliff.outputs.version }}.tar.xz
-            build/meson-dist/still-${{ steps.git-cliff.outputs.version }}.tar.xz.sha256sum
+          files: build/meson-dist/still-*.tar.xz{,.sha256sum}
           token: ${{ steps.app-token.outputs.token }}
