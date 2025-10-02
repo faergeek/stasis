@@ -32,5 +32,7 @@ jobs:
         with:
           body_path: /tmp/release-notes.md
           fail_on_unmatched_files: true
-          files: "build/meson-dist/still-*.tar.xz{,.sha256sum}"
+          files: |
+            build/meson-dist/still-*.tar.xz
+            build/meson-dist/still-*.tar.xz.sha256sum
           token: ${{ steps.app-token.outputs.token }}
