@@ -25,7 +25,6 @@ jobs:
           OUTPUT: /tmp/release-notes.md
       - run: sudo apt-get install libwayland-dev meson wayland-protocols
       - run: meson setup --buildtype release build
-      - run: git diff
       - run: meson dist -C build
       - uses: softprops/action-gh-release@v2
         with:
