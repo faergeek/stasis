@@ -24,8 +24,10 @@ jobs:
         env:
           OUTPUT: /tmp/release-notes.md
       - run: sudo apt-get install libwayland-dev meson wayland-protocols
-      - run: meson setup --buildtype release build
-      - run: meson dist -C build
+      - name: prepare a tarball
+        run: |
+          meson setup --buildtype release build
+          meson dist -C build
       - uses: softprops/action-gh-release@v2
         with:
           body_path: /tmp/release-notes.md
