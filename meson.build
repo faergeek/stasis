@@ -4,10 +4,13 @@ project(
     version: '0.0.1',
     license: 'MIT',
     meson_version: '>=1.7.0',
-    default_options: ['c_std=c23', 'warning_level=3', 'werror=true'],
+    default_options: ['c_std=c11', 'warning_level=3', 'werror=true'],
 )
 
-add_project_arguments('-D_POSIX_C_SOURCE=200809L', language: 'c')
+add_project_arguments(
+    ['-D_POSIX_C_SOURCE=200809L', '-Wno-unused-parameter'],
+    language: 'c',
+)
 
 wayland = import('wayland')
 

@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -65,7 +66,8 @@ static inline int create_shm_file(off_t size) {
   return -1;
 }
 
-static inline void buffer_handle_release(void *, struct wl_buffer *wl_buffer) {
+static inline void buffer_handle_release(void *data,
+                                         struct wl_buffer *wl_buffer) {
   wl_buffer_destroy(wl_buffer);
 }
 
@@ -80,7 +82,7 @@ static inline struct wl_buffer *create_buffer(struct wl_shm *shm,
 
   int fd = create_shm_file(size);
   if (fd == -1) {
-    return nullptr;
+    return NULL;
   }
 
   struct wl_shm_pool *pool = wl_shm_create_pool(shm, fd, size);
@@ -89,7 +91,7 @@ static inline struct wl_buffer *create_buffer(struct wl_shm *shm,
   wl_shm_pool_destroy(pool);
   close(fd);
 
-  wl_buffer_add_listener(wl_buffer, &wl_buffer_listener, nullptr);
+  wl_buffer_add_listener(wl_buffer, &wl_buffer_listener, NULL);
 
   return wl_buffer;
 }
@@ -101,7 +103,7 @@ screencopy_handle_buffer(void *data, struct zwlr_screencopy_frame_v1 *frame,
   struct screenshot_overlay *overlay = data;
 
   if (!overlay->wl_buffer) {
-    auto wl_buffer =
+    struct wl_buffer *wl_buffer =
         create_buffer(overlay->globals->wl_shm, format, width, height, stride);
 
     if (!wl_buffer) {
@@ -117,9 +119,11 @@ screencopy_handle_buffer(void *data, struct zwlr_screencopy_frame_v1 *frame,
 }
 
 static inline void
-screencopy_handle_flags(void *, struct zwlr_screencopy_frame_v1 *, uint32_t) {}
+screencopy_handle_flags(void *data, struct zwlr_screencopy_frame_v1 *frame,
+                        uint32_t flags) {}
 
-void sync_handle_done(void *data, struct wl_callback *, uint32_t) {
+void sync_handle_done(void *data, struct wl_callback *wl_callback,
+                      uint32_t callback_data) {
   struct screenshot_overlay *overlay = data;
 
   overlay->globals->status = system(overlay->globals->command);
@@ -128,10 +132,9 @@ void sync_handle_done(void *data, struct wl_callback *, uint32_t) {
 
 struct wl_callback_listener sync_listener = {.done = sync_handle_done};
 
-static inline void
-layer_surface_handle_configure(void *data,
-                               struct zwlr_layer_surface_v1 *wlr_layer_surface,
-                               uint32_t serial, uint32_t, uint32_t) {
+static inline void layer_surface_handle_configure(
+    void *data, struct zwlr_layer_surface_v1 *wlr_layer_surface,
+    uint32_t serial, uint32_t width, uint32_t height) {
   struct screenshot_overlay *overlay = data;
 
   zwlr_layer_surface_v1_ack_configure(wlr_layer_surface, serial);
@@ -144,7 +147,7 @@ layer_surface_handle_configure(void *data,
 }
 
 static inline void
-layer_surface_handle_closed(void *,
+layer_surface_handle_closed(void *data,
                             struct zwlr_layer_surface_v1 *wlr_layer_surface) {
   zwlr_layer_surface_v1_destroy(wlr_layer_surface);
 }
@@ -156,18 +159,19 @@ static const struct zwlr_layer_surface_v1_listener layer_surface_listener = {
 
 static inline void
 screencopy_handle_ready(void *data, struct zwlr_screencopy_frame_v1 *frame,
-                        uint32_t, uint32_t, uint32_t) {
+                        uint32_t tv_sec_hi, uint32_t tv_sec_lo,
+                        uint32_t tv_nsec) {
   struct screenshot_overlay *overlay = data;
 
   overlay->wl_surface =
       wl_compositor_create_surface(overlay->globals->wl_compositor);
-  assert(overlay->wl_surface != nullptr);
+  assert(overlay->wl_surface != NULL);
 
   struct zwlr_layer_surface_v1 *layer_surface =
       zwlr_layer_shell_v1_get_layer_surface(
           overlay->globals->wlr_layer_shell, overlay->wl_surface,
           overlay->wl_output, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "still");
-  assert(layer_surface != nullptr);
+  assert(layer_surface != NULL);
 
   zwlr_layer_surface_v1_set_size(layer_surface, 0, 0);
 
@@ -203,7 +207,7 @@ const struct zwlr_screencopy_frame_v1_listener screencopy_listener = {
 static inline void registry_handle_global(void *data,
                                           struct wl_registry *wl_registry,
                                           uint32_t name, const char *interface,
-                                          uint32_t) {
+                                          uint32_t version) {
   struct globals *globals = data;
 
   if (strcmp(interface, wl_compositor_interface.name) == 0) {
@@ -226,8 +230,9 @@ static inline void registry_handle_global(void *data,
   }
 }
 
-static inline void registry_handle_global_remove(void *, struct wl_registry *,
-                                                 uint32_t) {}
+static inline void
+registry_handle_global_remove(void *data, struct wl_registry *wl_registry,
+                              uint32_t name) {}
 
 static const struct wl_registry_listener wl_registry_listener = {
     .global = registry_handle_global,
@@ -246,11 +251,11 @@ void usage(FILE *restrict stream, const char bin_name[]) {
 }
 
 int main(int argc, char *argv[]) {
-  struct globals globals = {};
+  struct globals globals = {0};
   bool overlay_cursor = false;
 
   const char *bin_name = argv[0];
-  if (bin_name == nullptr || strlen(bin_name) == 0) {
+  if (bin_name == NULL || strlen(bin_name) == 0) {
     bin_name = "still";
   }
 
@@ -278,7 +283,7 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  globals.wl_display = wl_display_connect(nullptr);
+  globals.wl_display = wl_display_connect(NULL);
   if (!globals.wl_display) {
     fprintf(stderr, "ERROR: Failed to connect to a Wayland display\n");
     return EXIT_FAILURE;
@@ -286,16 +291,17 @@ int main(int argc, char *argv[]) {
 
   wl_array_init(&globals.monitors);
 
-  auto registry = wl_display_get_registry(globals.wl_display);
+  struct wl_registry *registry = wl_display_get_registry(globals.wl_display);
   wl_registry_add_listener(registry, &wl_registry_listener, &globals);
   wl_display_roundtrip(globals.wl_display);
 
   struct wl_output **wl_output;
   wl_array_for_each(wl_output, &globals.monitors) {
-    auto frame = zwlr_screencopy_manager_v1_capture_output(
-        globals.wlr_screencopy_manager, overlay_cursor, *wl_output);
+    struct zwlr_screencopy_frame_v1 *frame =
+        zwlr_screencopy_manager_v1_capture_output(
+            globals.wlr_screencopy_manager, overlay_cursor, *wl_output);
 
-    auto overlay = (struct screenshot_overlay){
+    struct screenshot_overlay overlay = (struct screenshot_overlay){
         .globals = &globals,
         .wl_output = *wl_output,
     };
