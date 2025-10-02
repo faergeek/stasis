@@ -24,13 +24,13 @@ jobs:
         env:
           OUTPUT: /tmp/release-notes.md
       - run: sudo apt-get install libwayland-dev meson wayland-protocols
-      - run: meson setup --buildtype release build
-      - run: git diff
-      - run: meson dist -C build
+      - name: prepare a tarball
+        run: |
+          meson setup --buildtype release build
+          meson dist -C build
       - uses: softprops/action-gh-release@v2
         with:
           body_path: /tmp/release-notes.md
-          files: |
-            build/meson-dist/still-${{ steps.git-cliff.outputs.version }}.tar.xz
-            build/meson-dist/still-${{ steps.git-cliff.outputs.version }}.tar.xz.sha256sum
+          fail_on_unmatched_files: true
+          files: build/meson-dist/still-*.tar.xz{,.sha256sum}
           token: ${{ steps.app-token.outputs.token }}
