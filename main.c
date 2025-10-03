@@ -14,11 +14,9 @@
 #include <wayland-client-protocol.h>
 
 struct globals {
-  char *command;
-  bool done;
-  int status;
+  bool failed;
 
-  struct wl_array monitors;
+  struct wl_array overlays;
   struct wl_compositor *wl_compositor;
   struct wl_display *wl_display;
   struct wl_shm *wl_shm;
@@ -27,6 +25,7 @@ struct globals {
 };
 
 struct screenshot_overlay {
+  bool ready;
   struct globals *globals;
   struct wl_buffer *wl_buffer;
   struct wl_output *wl_output;
@@ -68,7 +67,9 @@ static inline int create_shm_file(off_t size) {
 
 static inline void buffer_handle_release(void *data,
                                          struct wl_buffer *wl_buffer) {
-  wl_buffer_destroy(wl_buffer);
+  struct screenshot_overlay *overlay = data;
+  wl_buffer_destroy(overlay->wl_buffer);
+  overlay->wl_buffer = NULL;
 }
 
 static const struct wl_buffer_listener wl_buffer_listener = {
@@ -91,8 +92,6 @@ static inline struct wl_buffer *create_buffer(struct wl_shm *shm,
   wl_shm_pool_destroy(pool);
   close(fd);
 
-  wl_buffer_add_listener(wl_buffer, &wl_buffer_listener, NULL);
-
   return wl_buffer;
 }
 
@@ -103,16 +102,16 @@ screencopy_handle_buffer(void *data, struct zwlr_screencopy_frame_v1 *frame,
   struct screenshot_overlay *overlay = data;
 
   if (!overlay->wl_buffer) {
-    struct wl_buffer *wl_buffer =
+    overlay->wl_buffer =
         create_buffer(overlay->globals->wl_shm, format, width, height, stride);
 
-    if (!wl_buffer) {
-      overlay->globals->status = EXIT_FAILURE;
-      overlay->globals->done = true;
+    if (!overlay->wl_buffer) {
+      fprintf(stderr, "ERROR: Failed to create a buffer for screenshot\n");
+      overlay->globals->failed = true;
       return;
     }
 
-    overlay->wl_buffer = wl_buffer;
+    wl_buffer_add_listener(overlay->wl_buffer, &wl_buffer_listener, overlay);
   }
 
   zwlr_screencopy_frame_v1_copy(frame, overlay->wl_buffer);
@@ -125,9 +124,7 @@ screencopy_handle_flags(void *data, struct zwlr_screencopy_frame_v1 *frame,
 void sync_handle_done(void *data, struct wl_callback *wl_callback,
                       uint32_t callback_data) {
   struct screenshot_overlay *overlay = data;
-
-  overlay->globals->status = system(overlay->globals->command);
-  overlay->globals->done = true;
+  overlay->ready = true;
 }
 
 struct wl_callback_listener sync_listener = {.done = sync_handle_done};
@@ -192,8 +189,7 @@ static inline void
 screencopy_handle_failed(void *data, struct zwlr_screencopy_frame_v1 *frame) {
   struct screenshot_overlay *overlay = data;
   fprintf(stderr, "ERROR: Failed to capture output\n");
-  overlay->globals->status = EXIT_FAILURE;
-  overlay->globals->done = true;
+  overlay->globals->failed = true;
   zwlr_screencopy_frame_v1_destroy(frame);
 }
 
@@ -216,10 +212,14 @@ static inline void registry_handle_global(void *data,
   } else if (strcmp(interface, wl_shm_interface.name) == 0) {
     globals->wl_shm = wl_registry_bind(wl_registry, name, &wl_shm_interface, 1);
   } else if (strcmp(interface, wl_output_interface.name) == 0) {
-    struct wl_output **wl_output =
-        wl_array_add(&globals->monitors, sizeof(*wl_output));
+    struct screenshot_overlay *overlay =
+        wl_array_add(&globals->overlays, sizeof(*overlay));
 
-    *wl_output = wl_registry_bind(wl_registry, name, &wl_output_interface, 1);
+    *overlay = (struct screenshot_overlay){
+        .globals = globals,
+        .wl_output =
+            wl_registry_bind(wl_registry, name, &wl_output_interface, 1),
+    };
   } else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
     globals->wlr_layer_shell =
         wl_registry_bind(wl_registry, name, &zwlr_layer_shell_v1_interface, 1);
@@ -252,6 +252,7 @@ void usage(FILE *restrict stream, const char bin_name[]) {
 
 int main(int argc, char *argv[]) {
   struct globals globals = {0};
+  char *command = NULL;
   bool overlay_cursor = false;
 
   const char *bin_name = argv[0];
@@ -263,7 +264,7 @@ int main(int argc, char *argv[]) {
   while ((option = getopt(argc, argv, "c:hp")) != -1) {
     switch (option) {
     case 'c':
-      globals.command = optarg;
+      command = optarg;
       break;
     case 'h':
       usage(stdout, bin_name);
@@ -277,8 +278,8 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (!globals.command) {
-    fprintf(stderr, "ERROR: a command must be provided -c\n");
+  if (!command) {
+    fprintf(stderr, "ERROR: a command must be provided via -c flag\n");
     usage(stderr, bin_name);
     return EXIT_FAILURE;
   }
@@ -289,35 +290,60 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  wl_array_init(&globals.monitors);
+  wl_array_init(&globals.overlays);
 
   struct wl_registry *registry = wl_display_get_registry(globals.wl_display);
   wl_registry_add_listener(registry, &wl_registry_listener, &globals);
   wl_display_roundtrip(globals.wl_display);
 
-  struct wl_output **wl_output;
-  wl_array_for_each(wl_output, &globals.monitors) {
-    struct screenshot_overlay *overlay = malloc(sizeof(*overlay));
-
-    *overlay = (struct screenshot_overlay){
-        .globals = &globals,
-        .wl_output = *wl_output,
-    };
-
+  struct screenshot_overlay *overlay;
+  wl_array_for_each(overlay, &globals.overlays) {
     struct zwlr_screencopy_frame_v1 *frame =
         zwlr_screencopy_manager_v1_capture_output(
-            globals.wlr_screencopy_manager, overlay_cursor, *wl_output);
+            globals.wlr_screencopy_manager, overlay_cursor, overlay->wl_output);
 
     zwlr_screencopy_frame_v1_add_listener(frame, &screencopy_listener, overlay);
   }
 
-  while (!globals.done) {
+  while (true) {
     if (wl_display_dispatch(globals.wl_display) == -1) {
+      fprintf(stderr, "ERROR: Failed to dispatch events: %s\n",
+              strerror(errno));
+      globals.failed = true;
+    }
+
+    if (globals.failed) {
+      break;
+    }
+
+    bool all_ready = true;
+    wl_array_for_each(overlay, &globals.overlays) {
+      all_ready = all_ready && overlay->ready;
+
+      if (!all_ready) {
+        break;
+      }
+    }
+
+    if (all_ready) {
       break;
     }
   }
 
+  int status = globals.failed ? EXIT_FAILURE : system(command);
+
+  wl_array_for_each(overlay, &globals.overlays) {
+    wl_surface_destroy(overlay->wl_surface);
+    wl_output_destroy(overlay->wl_output);
+  }
+
+  wl_array_release(&globals.overlays);
+  zwlr_screencopy_manager_v1_destroy(globals.wlr_screencopy_manager);
+  zwlr_layer_shell_v1_destroy(globals.wlr_layer_shell);
+  wl_compositor_destroy(globals.wl_compositor);
+  wl_shm_destroy(globals.wl_shm);
+  wl_registry_destroy(registry);
   wl_display_disconnect(globals.wl_display);
 
-  return globals.status;
+  return status;
 }
