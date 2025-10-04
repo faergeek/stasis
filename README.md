@@ -3,10 +3,10 @@
 Freeze the screen of a Wayland compositor until a provided command exits.
 
 > [!IMPORTANT]
-> Make sure the command you provide gives you a way to quit other than hitting
-> `Ctrl+C` as it won't work because all input will effectively be blocked and
-> with no way to quit you'll have to switch to a TTY to kill it (e.g.
-> `Ctrl+Alt+F5`, login, `pkill still`).
+> Make sure the command you provide gives you a way to quit in case it takes
+> over the keyboard input. If keyboard input is not taken over and you just run
+> it from the terminal you can still hit `Ctrl+C` as `still` just lets all
+> input to be passed through.
 
 Works great with [grim](https://gitlab.freedesktop.org/emersion/grim) and
 [slurp](https://github.com/emersion/slurp):
