@@ -3,7 +3,7 @@ project(
     'c',
     version: '0.0.3',
     license: 'MIT',
-    meson_version: '>=0.58.0',
+    meson_version: '>=0.59.0',
     default_options: ['c_std=c11', 'warning_level=3', 'werror=true'],
 )
 
@@ -49,3 +49,18 @@ executable(
     sources: ['main.c', xdg_shell, layer_shell, screencopy],
     dependencies: [dependency('wayland-client')],
 )
+
+scdoc = find_program('scdoc', required: get_option('man-pages'))
+
+if scdoc.found()
+    custom_target(
+        'still.1',
+        input: 'still.1.scd',
+        output: 'still.1',
+        command: scdoc,
+        feed: true,
+        capture: true,
+        install: true,
+        install_dir: get_option('mandir') / 'man1',
+    )
+endif

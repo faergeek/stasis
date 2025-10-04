@@ -244,9 +244,9 @@ void usage(FILE *restrict stream, const char bin_name[]) {
           "Usage: %s [options...] -c <command>\n"
           "\n"
           "  -h           Show help message and quit\n"
-          "  -c <command> Shell command (same as sh -c) after exit of\n"
-          "               which the screen is unfrozen\n"
-          "  -p           Include a pointer (cursor) in a frozen screenshot\n",
+          "  -c <command> Shell command, which will be executed via\n"
+          "               \"sh -c <command>\" while the screen is frozen\n"
+          "  -p           Include a pointer (cursor) on a frozen screenshot\n",
           bin_name);
 }
 

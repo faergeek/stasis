@@ -21,7 +21,7 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - run: sudo apt-get install libwayland-dev meson wayland-protocols
+      - run: sudo apt-get install libwayland-dev meson scdoc wayland-protocols
       - run: meson setup --buildtype release build
       - run: ninja -C build
   bump-version:

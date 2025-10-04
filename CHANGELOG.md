@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
+## Unreleased
+
+### Documentation
+
+- improve wording in the `-h` output
+- generate a man page via scdoc
+
 ## 0.0.3 (2025-10-03)
 
 ### Fixes
