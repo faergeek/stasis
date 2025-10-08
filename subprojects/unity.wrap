@@ -1,0 +1,10 @@
+[wrap-file]
+directory = Unity-2.6.1
+source_url = https://github.com/ThrowTheSwitch/Unity/archive/refs/tags/v2.6.1.tar.gz
+source_filename = Unity-2.6.1.tar.gz
+source_hash = b41a66d45a6b99758fb3202ace6178177014d52fc524bf1f72687d93e9867292
+source_fallback_url = https://github.com/mesonbuild/wrapdb/releases/download/unity_2.6.1-1/Unity-2.6.1.tar.gz
+wrapdb_version = 2.6.1-1
+
+[provide]
+unity = unity_dep

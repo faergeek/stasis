@@ -12,6 +12,10 @@ add_project_arguments(
     language: 'c',
 )
 
+math = meson.get_compiler('c').find_library('m', required: false)
+pixman = dependency('pixman-1')
+wayland_client = dependency('wayland-client', version: '>=1.20')
+
 wayland_scanner = find_program('wayland-scanner', native: true)
 
 proto_c = generator(
@@ -33,6 +37,15 @@ xdg_shell = [
     proto_c.process(wayland_protocols_datadir / 'stable/xdg-shell/xdg-shell.xml'),
 ]
 
+wp_viewporter = [
+    proto_c.process(
+        wayland_protocols_datadir / 'stable/viewporter/viewporter.xml',
+    ),
+    proto_h.process(
+        wayland_protocols_datadir / 'stable/viewporter/viewporter.xml',
+    ),
+]
+
 layer_shell = [
     proto_c.process('wlr-layer-shell-unstable-v1.xml'),
     proto_h.process('wlr-layer-shell-unstable-v1.xml'),
@@ -46,8 +59,40 @@ screencopy = [
 executable(
     'still',
     install: true,
-    sources: ['main.c', xdg_shell, layer_shell, screencopy],
-    dependencies: [dependency('wayland-client')],
+    sources: [
+        'array.c',
+        'buffer.c',
+        'capture.c',
+        'image.c',
+        'main.c',
+        'overlay.c',
+        xdg_shell,
+        wp_viewporter,
+        layer_shell,
+        screencopy,
+    ],
+    dependencies: [math, pixman, wayland_client],
+)
+
+unity = subproject('unity')
+unity_dep = unity.get_variable('unity_dep')
+
+test(
+    'array',
+    executable(
+        'array.test',
+        sources: ['array.c', 'array.test.c'],
+        dependencies: [unity_dep],
+    ),
+)
+
+test(
+    'image',
+    executable(
+        'image.test',
+        sources: ['image.c', 'image.test.c'],
+        dependencies: [math, pixman, unity_dep],
+    ),
 )
 
 scdoc = find_program('scdoc', required: get_option('man-pages'))
