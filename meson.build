@@ -74,26 +74,29 @@ executable(
     dependencies: [math, pixman, wayland_client],
 )
 
-unity = subproject('unity')
-unity_dep = unity.get_variable('unity_dep')
+unity = subproject('unity', required: false)
 
-test(
-    'array',
-    executable(
-        'array.test',
-        sources: ['array.c', 'array.test.c'],
-        dependencies: [unity_dep],
-    ),
-)
+if unity.found()
+    unity_dep = unity.get_variable('unity_dep')
 
-test(
-    'image',
-    executable(
-        'image.test',
-        sources: ['image.c', 'image.test.c'],
-        dependencies: [math, pixman, unity_dep],
-    ),
-)
+    test(
+        'array',
+        executable(
+            'array.test',
+            sources: ['array.c', 'array.test.c'],
+            dependencies: [unity_dep],
+        ),
+    )
+
+    test(
+        'image',
+        executable(
+            'image.test',
+            sources: ['image.c', 'image.test.c'],
+            dependencies: [math, pixman, unity_dep],
+        ),
+    )
+endif
 
 scdoc = find_program('scdoc', required: get_option('man-pages'))
 
