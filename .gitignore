@@ -1,3 +1,3 @@
 /.cache
+/subprojects/**/
 /subprojects/.wraplock
-/subprojects/packagecache/

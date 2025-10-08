@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
+## Unreleased
+
+### Fixes
+
+- remove `unity` from the repo, make it optional instead
+
 ## 0.0.6 (2025-10-08)
 
 ### Fixes
