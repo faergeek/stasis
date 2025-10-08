@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
+## Unreleased
+
+### Fixes
+
+- commit `unity` as a subproject
+
 ## 0.0.5 (2025-10-08)
 
 ### Fixes
