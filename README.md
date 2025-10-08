@@ -44,17 +44,18 @@ Dependencies:
 - meson
 - libwayland-client
 - wayland-protocols
+- pixman
 
 ##### Arch Linux
 
 ```sh
-sudo pacman -S meson wayland wayland-protocols
+sudo pacman -S meson pixman wayland wayland-protocols
 ```
 
 ##### Debian/Ubuntu
 
 ```sh
-sudo apt-get install meson libwayland-dev wayland-protocols
+sudo apt-get install meson libpixman-1-dev libwayland-dev wayland-protocols
 ```
 
 #### Compile

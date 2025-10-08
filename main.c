@@ -1,209 +1,19 @@
+#include "array.h"
+#include "capture.h"
+#include "overlay.h"
+#include "viewporter-client-protocol.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 #include "wlr-screencopy-unstable-v1-client-protocol.h"
-#include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <getopt.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <time.h>
-#include <unistd.h>
 #include <wayland-client-protocol.h>
 
-struct globals {
-  bool failed;
-
-  struct wl_array overlays;
-  struct wl_compositor *wl_compositor;
-  struct wl_display *wl_display;
-  struct wl_shm *wl_shm;
-  struct zwlr_layer_shell_v1 *wlr_layer_shell;
-  struct zwlr_screencopy_manager_v1 *wlr_screencopy_manager;
-};
-
-struct screenshot_overlay {
-  bool ready;
-  struct globals *globals;
-  struct wl_buffer *wl_buffer;
-  struct wl_output *wl_output;
-  struct wl_surface *wl_surface;
-};
-
-static inline void randname(char *buf) {
-  struct timespec ts;
-  clock_gettime(CLOCK_REALTIME, &ts);
-  long r = ts.tv_nsec;
-  for (int i = 0; i < 6; ++i) {
-    buf[i] = 'A' + (r & 15) + (r & 16) * 2;
-    r >>= 5;
-  }
-}
-
-static inline int create_shm_file(off_t size) {
-  char name[] = "/wl_shm-XXXXXX";
-  int retries = 100;
-
-  do {
-    --retries;
-    randname(name + strlen(name) - 6);
-    int fd = shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
-    if (fd >= 0) {
-      shm_unlink(name);
-
-      if (ftruncate(fd, size) < 0) {
-        close(fd);
-        return -1;
-      }
-
-      return fd;
-    }
-  } while (retries > 0 && errno == EEXIST);
-
-  return -1;
-}
-
-static inline void buffer_handle_release(void *data,
-                                         struct wl_buffer *wl_buffer) {
-  struct screenshot_overlay *overlay = data;
-  wl_buffer_destroy(overlay->wl_buffer);
-  overlay->wl_buffer = NULL;
-}
-
-static const struct wl_buffer_listener wl_buffer_listener = {
-    .release = buffer_handle_release,
-};
-
-static inline struct wl_buffer *create_buffer(struct wl_shm *shm,
-                                              uint32_t format, int32_t width,
-                                              int32_t height, int32_t stride) {
-  size_t size = stride * height;
-
-  int fd = create_shm_file(size);
-  if (fd == -1) {
-    return NULL;
-  }
-
-  struct wl_shm_pool *pool = wl_shm_create_pool(shm, fd, size);
-  struct wl_buffer *wl_buffer =
-      wl_shm_pool_create_buffer(pool, 0, width, height, stride, format);
-  wl_shm_pool_destroy(pool);
-  close(fd);
-
-  return wl_buffer;
-}
-
-static inline void
-screencopy_handle_buffer(void *data, struct zwlr_screencopy_frame_v1 *frame,
-                         uint32_t format, uint32_t width, uint32_t height,
-                         uint32_t stride) {
-  struct screenshot_overlay *overlay = data;
-
-  if (!overlay->wl_buffer) {
-    overlay->wl_buffer =
-        create_buffer(overlay->globals->wl_shm, format, width, height, stride);
-
-    if (!overlay->wl_buffer) {
-      fprintf(stderr, "ERROR: Failed to create a buffer for screenshot\n");
-      overlay->globals->failed = true;
-      return;
-    }
-
-    wl_buffer_add_listener(overlay->wl_buffer, &wl_buffer_listener, overlay);
-  }
-
-  zwlr_screencopy_frame_v1_copy(frame, overlay->wl_buffer);
-}
-
-static inline void
-screencopy_handle_flags(void *data, struct zwlr_screencopy_frame_v1 *frame,
-                        uint32_t flags) {}
-
-void sync_handle_done(void *data, struct wl_callback *wl_callback,
-                      uint32_t callback_data) {
-  struct screenshot_overlay *overlay = data;
-  overlay->ready = true;
-}
-
-struct wl_callback_listener sync_listener = {.done = sync_handle_done};
-
-static inline void layer_surface_handle_configure(
-    void *data, struct zwlr_layer_surface_v1 *wlr_layer_surface,
-    uint32_t serial, uint32_t width, uint32_t height) {
-  struct screenshot_overlay *overlay = data;
-
-  zwlr_layer_surface_v1_ack_configure(wlr_layer_surface, serial);
-  wl_surface_attach(overlay->wl_surface, overlay->wl_buffer, 0, 0);
-  wl_surface_commit(overlay->wl_surface);
-
-  struct wl_callback *sync_callback =
-      wl_display_sync(overlay->globals->wl_display);
-  wl_callback_add_listener(sync_callback, &sync_listener, overlay);
-}
-
-static inline void
-layer_surface_handle_closed(void *data,
-                            struct zwlr_layer_surface_v1 *wlr_layer_surface) {
-  zwlr_layer_surface_v1_destroy(wlr_layer_surface);
-}
-
-static const struct zwlr_layer_surface_v1_listener layer_surface_listener = {
-    .configure = layer_surface_handle_configure,
-    .closed = layer_surface_handle_closed,
-};
-
-static inline void
-screencopy_handle_ready(void *data, struct zwlr_screencopy_frame_v1 *frame,
-                        uint32_t tv_sec_hi, uint32_t tv_sec_lo,
-                        uint32_t tv_nsec) {
-  struct screenshot_overlay *overlay = data;
-
-  overlay->wl_surface =
-      wl_compositor_create_surface(overlay->globals->wl_compositor);
-  assert(overlay->wl_surface != NULL);
-
-  struct zwlr_layer_surface_v1 *layer_surface =
-      zwlr_layer_shell_v1_get_layer_surface(
-          overlay->globals->wlr_layer_shell, overlay->wl_surface,
-          overlay->wl_output, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "still");
-  assert(layer_surface != NULL);
-
-  zwlr_layer_surface_v1_set_size(layer_surface, 0, 0);
-
-  int layer_surface_anchor =
-      ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
-      ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM | ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT;
-
-  zwlr_layer_surface_v1_set_anchor(layer_surface, layer_surface_anchor);
-  zwlr_layer_surface_v1_set_exclusive_zone(layer_surface, -1);
-
-  zwlr_layer_surface_v1_add_listener(layer_surface, &layer_surface_listener,
-                                     overlay);
-  wl_surface_commit(overlay->wl_surface);
-  zwlr_screencopy_frame_v1_destroy(frame);
-}
-
-static inline void
-screencopy_handle_failed(void *data, struct zwlr_screencopy_frame_v1 *frame) {
-  struct screenshot_overlay *overlay = data;
-  fprintf(stderr, "ERROR: Failed to capture output\n");
-  overlay->globals->failed = true;
-  zwlr_screencopy_frame_v1_destroy(frame);
-}
-
-const struct zwlr_screencopy_frame_v1_listener screencopy_listener = {
-    .buffer = screencopy_handle_buffer,
-    .flags = screencopy_handle_flags,
-    .ready = screencopy_handle_ready,
-    .failed = screencopy_handle_failed,
-};
-
-static inline void registry_handle_global(void *data,
-                                          struct wl_registry *wl_registry,
-                                          uint32_t name, const char *interface,
-                                          uint32_t version) {
+static void registry_handle_global(void *data, struct wl_registry *wl_registry,
+                                   uint32_t name, const char *interface,
+                                   uint32_t version) {
   struct globals *globals = data;
 
   if (strcmp(interface, wl_compositor_interface.name) == 0) {
@@ -212,31 +22,68 @@ static inline void registry_handle_global(void *data,
   } else if (strcmp(interface, wl_shm_interface.name) == 0) {
     globals->wl_shm = wl_registry_bind(wl_registry, name, &wl_shm_interface, 1);
   } else if (strcmp(interface, wl_output_interface.name) == 0) {
-    struct screenshot_overlay *overlay =
-        wl_array_add(&globals->overlays, sizeof(*overlay));
+    struct wl_output *wl_output =
+        wl_registry_bind(wl_registry, name, &wl_output_interface, 4);
 
-    *overlay = (struct screenshot_overlay){
+    struct overlay overlay = {
         .globals = globals,
-        .wl_output =
-            wl_registry_bind(wl_registry, name, &wl_output_interface, 1),
+        .wl_output = wl_output,
     };
+
+    array_push(globals->overlays, overlay);
+  } else if (strcmp(interface, wp_viewporter_interface.name) == 0) {
+    globals->wp_viewporter =
+        wl_registry_bind(wl_registry, name, &wp_viewporter_interface, 1);
   } else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
     globals->wlr_layer_shell =
-        wl_registry_bind(wl_registry, name, &zwlr_layer_shell_v1_interface, 1);
+        wl_registry_bind(wl_registry, name, &zwlr_layer_shell_v1_interface, 3);
   } else if (strcmp(interface, zwlr_screencopy_manager_v1_interface.name) ==
              0) {
     globals->wlr_screencopy_manager = wl_registry_bind(
-        wl_registry, name, &zwlr_screencopy_manager_v1_interface, 2);
+        wl_registry, name, &zwlr_screencopy_manager_v1_interface, 3);
   }
 }
 
-static inline void
-registry_handle_global_remove(void *data, struct wl_registry *wl_registry,
-                              uint32_t name) {}
+static void registry_handle_global_remove(void *data,
+                                          struct wl_registry *wl_registry,
+                                          uint32_t name) {}
 
 static const struct wl_registry_listener wl_registry_listener = {
     .global = registry_handle_global,
     .global_remove = registry_handle_global_remove,
+};
+
+static void output_handle_geometry(void *data, struct wl_output *wl_output,
+                                   int32_t x, int32_t y, int32_t physical_width,
+                                   int32_t physical_height, int32_t subpixel,
+                                   const char *make, const char *model,
+                                   int32_t transform) {
+  struct overlay *overlay = data;
+  overlay->wl_output_transform = transform;
+}
+
+static void output_handle_mode(void *data, struct wl_output *wl_output,
+                               uint32_t flags, int32_t width, int32_t height,
+                               int32_t refresh) {}
+
+static void output_handle_done(void *data, struct wl_output *wl_output) {}
+
+static void output_handle_scale(void *data, struct wl_output *wl_output,
+                                int32_t factor) {}
+
+static void output_handle_name(void *data, struct wl_output *wl_output,
+                               const char *name) {}
+
+static void output_handle_description(void *data, struct wl_output *wl_output,
+                                      const char *description) {}
+
+static const struct wl_output_listener output_listener = {
+    .geometry = output_handle_geometry,
+    .mode = output_handle_mode,
+    .done = output_handle_done,
+    .scale = output_handle_scale,
+    .name = output_handle_name,
+    .description = output_handle_description,
 };
 
 void usage(FILE *restrict stream, const char bin_name[]) {
@@ -290,37 +137,36 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  wl_array_init(&globals.overlays);
-
   struct wl_registry *registry = wl_display_get_registry(globals.wl_display);
   wl_registry_add_listener(registry, &wl_registry_listener, &globals);
-  wl_display_roundtrip(globals.wl_display);
 
-  struct screenshot_overlay *overlay;
-  wl_array_for_each(overlay, &globals.overlays) {
-    struct zwlr_screencopy_frame_v1 *frame =
-        zwlr_screencopy_manager_v1_capture_output(
-            globals.wlr_screencopy_manager, overlay_cursor, overlay->wl_output);
-
-    zwlr_screencopy_frame_v1_add_listener(frame, &screencopy_listener, overlay);
-  }
-
-  while (true) {
+  int status = 0;
+  while (status == 0) {
     if (wl_display_dispatch(globals.wl_display) == -1) {
       fprintf(stderr, "ERROR: Failed to dispatch events: %s\n",
               strerror(errno));
-      globals.failed = true;
-    }
-
-    if (globals.failed) {
+      status = EXIT_FAILURE;
       break;
     }
 
     bool all_ready = true;
-    wl_array_for_each(overlay, &globals.overlays) {
-      all_ready = all_ready && overlay->ready;
+    for (size_t i = 0; i < array_length(globals.overlays); i++) {
+      struct overlay *overlay = &globals.overlays[i];
 
-      if (!all_ready) {
+      switch (overlay->capture_status) {
+      case PENDING:
+        wl_output_add_listener(overlay->wl_output, &output_listener, overlay);
+        capture(overlay_cursor, overlay);
+        all_ready = false;
+        break;
+      case WAITING:
+        all_ready = false;
+        break;
+      case READY:
+        break;
+      case FAILED:
+        status = EXIT_FAILURE;
+        all_ready = false;
         break;
       }
     }
@@ -330,19 +176,20 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  int status = globals.failed ? EXIT_FAILURE : system(command);
+  status = status || system(command);
 
-  wl_array_for_each(overlay, &globals.overlays) {
-    wl_surface_destroy(overlay->wl_surface);
-    wl_output_destroy(overlay->wl_output);
+  for (size_t i = 0; i < array_length(globals.overlays); i++) {
+    overlay_destroy(&globals.overlays[i]);
   }
 
-  wl_array_release(&globals.overlays);
+  array_free(globals.overlays);
+
+  wl_registry_destroy(registry);
   zwlr_screencopy_manager_v1_destroy(globals.wlr_screencopy_manager);
   zwlr_layer_shell_v1_destroy(globals.wlr_layer_shell);
+  wp_viewporter_destroy(globals.wp_viewporter);
   wl_compositor_destroy(globals.wl_compositor);
   wl_shm_destroy(globals.wl_shm);
-  wl_registry_destroy(registry);
   wl_display_disconnect(globals.wl_display);
 
   return status;

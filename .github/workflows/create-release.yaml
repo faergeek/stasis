@@ -23,7 +23,7 @@ jobs:
           args: --current --strip all
         env:
           OUTPUT: /tmp/release-notes.md
-      - run: sudo apt-get install libwayland-dev meson scdoc wayland-protocols
+      - run: sudo apt-get install libpixman-1-dev libwayland-dev meson scdoc wayland-protocols
       - name: prepare a tarball
         run: |
           meson setup --buildtype release build
